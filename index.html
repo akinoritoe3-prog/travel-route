@@ -13,14 +13,24 @@
         .result-item { margin-bottom: 20px; }
         .label { font-weight: bold; color: #34495e; display: block; margin-bottom: 8px; background: #ebf2f7; padding: 4px 10px; border-radius: 4px; font-size: 0.95em; }
         .content { padding-left: 10px; font-size: 1.05em; line-height: 1.8; }
-        .hotel-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #fffcf5; position: relative; }
-        .hotel-name { font-weight: bold; color: #d35400; font-size: 1.1em; }
+        
+        /* ホテルカード関連 */
+        .hotel-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #fffcf5; display: flex; align-items: flex-start; gap: 10px; }
+        .hotel-radio { margin-top: 5px; cursor: pointer; transform: scale(1.2); }
+        .hotel-info-body { flex-grow: 1; }
+        .hotel-name { font-weight: bold; color: #d35400; font-size: 1.1em; cursor: pointer; }
         .hotel-reason { font-size: 0.9em; color: #666; margin-top: 6px; border-top: 1px dashed #ddd; padding-top: 4px; white-space: pre-wrap; }
-        .btn-group { display: flex; gap: 15px; margin-top: 15px; }
-        .btn { flex: 1; text-align: center; padding: 15px; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
-        .btn-transit { background-color: #ff5a5f; }
-        .btn-map { background-color: #4285f4; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .btn { text-align: center; padding: 12px; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.95em; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.8; }
+        .btn-transit { background-color: #ff5a5f; } /* Yahoo赤 */
+        .btn-hotel-transit { background-color: #9b59b6; } /* ホテル発 紫 */
+        .btn-map { background-color: #4285f4; } /* Google青 */
+        
         .btn-hotel-map { float: right; font-size: 0.8em; background: #27ae60; color: white; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-weight: normal; }
+        .disabled { background-color: #ccc !important; cursor: not-allowed; pointer-events: none; }
+        
         .status-mark { font-size: 1.2em; font-weight: bold; margin-right: 5px; }
         .mark-double-circle { color: #27ae60; }
         .mark-circle { color: #f39c12; }
@@ -51,15 +61,16 @@
             </div>
 
             <div id="hotelSection" class="result-item">
-                <span class="label">近隣のおすすめホテル</span>
+                <span class="label">近隣のおすすめホテル（選択すると下の路線情報に反映されます）</span>
                 <div id="hotelInfo" class="content"></div>
             </div>
         </div>
 
-        <h2 id="accessTitle">アクセス詳細</h2>
+        <h2>アクセス詳細</h2>
         <div class="btn-group">
-            <a id="yahooLink" href="#" target="_blank" class="btn btn-transit">Yahoo!路線情報</a>
-            <a id="googleLink" href="#" target="_blank" class="btn btn-map">Googleマップ (学校までのルート)</a>
+            <a id="yahooLink" href="#" target="_blank" class="btn btn-transit">Yahoo!路線情報（有朋→学校）</a>
+            <a id="hotelYahooLink" href="#" target="_blank" class="btn btn-hotel-transit disabled">Yahoo!路線情報（ホテル→学校）※ホテルを選択してください</a>
+            <a id="googleLink" href="#" target="_blank" class="btn btn-map">googleマップ（有朋→学校）</a>
         </div>
     </div>
 </div>
@@ -103,6 +114,9 @@ const schoolData = [
     { id: "35", name: "羅臼", dist: 300, methods: ["JR特急（釧路）+阿寒バス（高校前）", "ANA（新千歳→中標津空港）＋阿寒バス（高校前）"], hotels: [{ name: "リブマックスリゾート知床シーフロント", reason: "学校までバス10分" }] }
 ];
 
+let currentSearchName = ""; // 現在選択中の学校（正式名称）
+let currentSchoolLabel = ""; // 現在選択中の学校（表示名）
+
 const select = document.getElementById('schoolSelect');
 schoolData.forEach(school => {
     let opt = document.createElement('option');
@@ -110,6 +124,14 @@ schoolData.forEach(school => {
     opt.innerHTML = `${school.id} ${school.name}`;
     select.appendChild(opt);
 });
+
+// ホテル発の路線情報を更新する関数
+function updateHotelTransit(hotelName) {
+    const btn = document.getElementById('hotelYahooLink');
+    btn.classList.remove('disabled');
+    btn.innerHTML = `Yahoo!路線情報（${hotelName}→${currentSchoolLabel}）`;
+    btn.href = `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(hotelName)}&to=${encodeURIComponent(currentSearchName)}`;
+}
 
 function updateInfo() {
     const val = select.value;
@@ -119,10 +141,19 @@ function updateInfo() {
     display.style.display = "block";
     const data = schoolData.find(s => s.id === val);
     
-    // 検索用の正式名称を決定
-    let searchName = data.name + "高校";
-    if (data.name === "福島商業") searchName = "北海道福島商業高等学校";
-    if (data.name === "森") searchName = "北海道森高等学校";
+    // 検索用の正式名称とラベルの決定
+    currentSchoolLabel = data.name;
+    currentSearchName = data.name + "高校";
+    if (data.name === "福島商業") currentSearchName = "北海道福島商業高等学校";
+    if (data.name === "森") currentSearchName = "北海道森高等学校";
+
+    // 各ボタンの文言を初期化
+    document.getElementById('yahooLink').innerHTML = `Yahoo!路線情報（有朋→${currentSchoolLabel}）`;
+    document.getElementById('googleLink').innerHTML = `googleマップ（有朋→${currentSchoolLabel}）`;
+    const hotelBtn = document.getElementById('hotelYahooLink');
+    hotelBtn.innerHTML = `Yahoo!路線情報（ホテル→${currentSchoolLabel}）※ホテルを選択してください`;
+    hotelBtn.classList.add('disabled');
+    hotelBtn.href = "#";
 
     let carHtml = "";
     let travelMode = "driving";
@@ -145,13 +176,16 @@ function updateInfo() {
 
     if (data.hotels && data.hotels.length > 0) {
         let hHtml = '';
-        data.hotels.forEach(h => {
-            const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(h.name)}&destination=${encodeURIComponent(searchName)}&travelmode=${travelMode}`;
+        data.hotels.forEach((h, index) => {
+            const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=$${encodeURIComponent(h.name)}&destination=${encodeURIComponent(currentSearchName)}&travelmode=${travelMode}`;
             hHtml += `
                 <div class="hotel-card">
-                    <a href="${mapUrl}" target="_blank" class="btn-hotel-map">ホテルと学校のルート表示</a>
-                    <span class="hotel-name">${h.name}</span>
-                    <div class="hotel-reason">${h.reason}</div>
+                    <input type="radio" name="hotelChoice" id="h_${index}" class="hotel-radio" onclick="updateHotelTransit('${h.name}')">
+                    <div class="hotel-info-body">
+                        <a href="${mapUrl}" target="_blank" class="btn-hotel-map">ホテルと学校のルート表示</a>
+                        <label for="h_${index}" class="hotel-name">${h.name}</label>
+                        <div class="hotel-reason">${h.reason}</div>
+                    </div>
                 </div>`;
         });
         document.getElementById('hotelInfo').innerHTML = hHtml;
@@ -159,8 +193,8 @@ function updateInfo() {
         document.getElementById('hotelInfo').innerHTML = '<span style="color:#999;">（おすすめホテル情報は登録されていません）</span>';
     }
     
-    document.getElementById('yahooLink').href = `https://transit.yahoo.co.jp/search/result?from=北海道有朋高等学校&to=${encodeURIComponent(searchName)}`;
-    document.getElementById('googleLink').href = `https://www.google.com/maps/dir/?api=1&origin=北海道有朋高等学校&destination=${encodeURIComponent(searchName)}&travelmode=${travelMode}`;
+    document.getElementById('yahooLink').href = `https://transit.yahoo.co.jp/search/result?from=北海道有朋高等学校&to=${encodeURIComponent(currentSearchName)}`;
+    document.getElementById('googleLink').href = `https://www.google.com/maps/dir/?api=1&origin=北海道有朋高等学校&destination=$${encodeURIComponent(currentSearchName)}&travelmode=${travelMode}`;
 }
 </script>
 
