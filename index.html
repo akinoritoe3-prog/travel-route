@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>北海道有朋高校 受信校移動経路検索ツール</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 850px; margin: 20px auto; padding: 20px; background-color: #f8f9fa; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; font-size: 1.4em; border-left: 6px solid #2980b9; padding-left: 12px; margin-bottom: 25px; }
+        h2 { font-size: 1.1em; color: #2c3e50; margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        select { width: 100%; padding: 12px; font-size: 1.1em; border: 2px solid #ddd; border-radius: 6px; margin-bottom: 20px; outline: none; background-color: #fff; }
+        .result-container { background: #fff; border: 1px solid #e1e4e8; border-radius: 8px; padding: 15px; }
+        .result-item { margin-bottom: 20px; }
+        .label { font-weight: bold; color: #34495e; display: block; margin-bottom: 8px; background: #ebf2f7; padding: 4px 10px; border-radius: 4px; font-size: 0.95em; }
+        .content { padding-left: 10px; font-size: 1.05em; line-height: 1.8; }
+        .hotel-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #fffcf5; position: relative; }
+        .hotel-name { font-weight: bold; color: #d35400; font-size: 1.1em; }
+        .hotel-reason { font-size: 0.9em; color: #666; margin-top: 6px; border-top: 1px dashed #ddd; padding-top: 4px; white-space: pre-wrap; }
+        .btn-group { display: flex; gap: 15px; margin-top: 15px; }
+        .btn { flex: 1; text-align: center; padding: 15px; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
+        .btn-transit { background-color: #ff5a5f; }
+        .btn-map { background-color: #4285f4; }
+        .btn-hotel-map { float: right; font-size: 0.8em; background: #27ae60; color: white; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-weight: normal; }
+        .status-mark { font-size: 1.2em; font-weight: bold; margin-right: 5px; }
+        .mark-double-circle { color: #27ae60; }
+        .mark-circle { color: #f39c12; }
+        .mark-cross { color: #e74c3c; }
+        small { color: #666; font-size: 0.85em; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>受信校移動経路検索ツール</h1>
+    
+    <label for="schoolSelect" style="font-size: 0.9em; color: #666;">受信校を選択してください</label>
+    <select id="schoolSelect" onchange="updateInfo()">
+        <option value="">-- 番号・学校名を選択 --</option>
+    </select>
+
+    <div id="displayArea" style="display:none;">
+        <div class="result-container">
+            <div class="result-item">
+                <span class="label">自家用車の利用区分（札幌からの最短距離）</span>
+                <div id="carStatus" class="content"></div>
+            </div>
+            
+            <div class="result-item">
+                <span class="label">公共交通機関（主な実績）</span>
+                <div id="transitMethod" class="content"></div>
+            </div>
+
+            <div id="hotelSection" class="result-item">
+                <span class="label">近隣のおすすめホテル</span>
+                <div id="hotelInfo" class="content"></div>
+            </div>
+        </div>
+
+        <h2 id="accessTitle">アクセス詳細</h2>
+        <div class="btn-group">
+            <a id="yahooLink" href="#" target="_blank" class="btn btn-transit">Yahoo!路線情報</a>
+            <a id="googleLink" href="#" target="_blank" class="btn btn-map">Googleマップ (学校までのルート)</a>
+        </div>
+    </div>
+</div>
+
+<script>
+const schoolData = [
+    { id: "01", name: "夕張", dist: 75, methods: [], hotels: [] },
+    { id: "02", name: "月形", dist: 35, methods: [], hotels: [] },
+    { id: "03", name: "芦別", dist: 110, methods: ["JR特急(滝川)＋JR普通（芦別）"], hotels: [] },
+    { id: "04", name: "蘭越", dist: 100, methods: ["JR普通（蘭越）"], hotels: [] },
+    { id: "05", name: "寿都", dist: 145, methods: ["JR特急（長万部）＋ニセコバス（寿都ターミナル）", "高速いわない号（岩内ターミナル）＋ニセコバス（寿都ターミナル）"], hotels: [{ name: "ホテル松や（岩内町）", reason: "バスターミナルまで徒歩10分\n低価格\nスーパーが近い" }, { name: "ダイマル大谷会館", reason: "食事がおいしい\n定休日が多い" }] },
+    { id: "06", name: "虻田", dist: 100, methods: [], hotels: [] },
+    { id: "07", name: "厚真", dist: 80, methods: [], hotels: [] },
+    { id: "08", name: "穂別", dist: 115, methods: [], hotels: [] },
+    { id: "09", name: "平取", dist: 110, methods: [], hotels: [] },
+    { id: "10", name: "松前", dist: 300, methods: ["JR特急（五稜郭）＋いさりび鉄道（木古内）＋函館バス（松前出張所）"], hotels: [{ name: "クラッセイン木古内（木古内町）", reason: "木古内駅・バス停が近い" }, { name: "温泉旅館矢野（松前町）", reason: "4月～５月上旬は予約難" }, { name: "知内温泉（知内町）", reason: "バス停まで送迎あり" }] },
+    { id: "11", name: "福島商業", dist: 300, methods: ["JR特急（五稜郭）＋いさりび鉄道（木古内）＋函館バス（福島商業高校前）"], hotels: [{ name: "新潮学舎", reason: "一泊朝食付きの５０００円\n生徒が下宿している寮の別棟（一般人向け）\n食堂は生徒と共同" }, { name: "ペンション鶴", reason: "低価格" }, { name: "クラッセイン木古内（木古内町）", reason: "木古内駅・バス停が近い" }] },
+    { id: "12", name: "南茅部", dist: 300, methods: ["JR特急（函館）＋函館バス（南茅部支所前）"], hotels: [{ name: "函館市内のホテル", reason: "※バスは駅前、五稜郭、湯川を通る" }, { name: "川汲温泉旅館", reason: "一泊素泊まり4500円" }] },
+    { id: "13", name: "長万部", dist: 160, methods: ["JR特急（長万部）＋ニセコバス（長万部温泉入口）"], hotels: [{ name: "長万部温泉ホテル", reason: "" }, { name: "ホテル四国屋", reason: "" }] },
+    { id: "14", name: "森", dist: 220, methods: ["JR特急（森）"], hotels: [{ name: "ルーストンホテル", reason: "駅前で食事処あり\n満室になりやすい" }, { name: "フレスコ森（八雲）", reason: "八雲の部屋はきれい" }] },
+    { id: "15", name: "上ノ国", dist: 300, methods: ["JR特急（新函館北斗）＋函館バス（江差ターミナル）＋函館バス（大留）"], hotels: [{ name: "ホテル寺子屋（江差町）", reason: "バス停が近い\n食品街が遠い" }, { name: "ホテルニュー江差(江差町)", reason: "バス停が近い\n食品街・五勝手屋本店が近い" }, { name: "よし栄旅館(上ノ国町)", reason: "食事がおいしい\n徒歩10分に花沢温泉(200円)有\nバス（カミGO!）で学校へ" }] },
+    { id: "16", name: "下川商業", dist: 215, methods: [], hotels: [{ name: "結いの森", reason: "軽い朝食付きで8,500円" }, { name: "名寄市内のビジネスホテル", reason: "" }] },
+    { id: "17", name: "美深", dist: 225, methods: [], hotels: [{ name: "びふか温泉", reason: "美深町唯一の宿泊施設" }] },
+    { id: "18", name: "上川", dist: 180, methods: ["JR特急（旭川）＋JR普通（上川）"], hotels: [] },
+    { id: "19", name: "苫前商業", dist: 190, methods: [], hotels: [{ name: "苫前温泉ふわっと", reason: "学校に一番近いホテル\n予約は電話のみ" }] },
+    { id: "20", name: "天塩", dist: 245, methods: ["沿岸バス特急はぼろ号（天塩）"], hotels: [{ name: "てしお温泉夕映", reason: "総合的に良いホテル\n高速バスのバス停から徒歩10分" }, { name: "日の丸旅館", reason: "高速バスのバス停から近い\n低価格\n学校まで送迎の可能性あり" }] },
+    { id: "21", name: "豊富", dist: 300, methods: ["JR特急（豊富）", "沿岸バス特急はぼろ号（豊富）"], hotels: [{ name: "川島旅館", reason: "キレイな温泉宿\n食事がおいしい\n猫が可愛い\n値段が高い" }, { name: "ニュー温泉閣ホテル", reason: "古き良き温泉宿（改装部屋もアリ）\n食事美味しい\n柔軟な送迎あり" }, { name: "ヤドカリハウス", reason: "駅まで徒歩20分\n低価格で、調理場あり" }] },
+    { id: "22", name: "礼文", dist: 300, methods: ["JR特急（稚内）＋フェリー（礼文島香深）"], hotels: [{ name: "ペンションうーにー", reason: "ターミナルから送り迎え有\n近くの温泉施設にも送迎あり\n部屋にユニットバス付" }, { name: "礼文観光ホテル 咲涼", reason: "ターミナルから徒歩圏内\n礼文島では高級に分類されるホテル" }, { name: "はな心", reason: "ターミナルから送迎あり\n部屋も綺麗\n料金に応じてトイレ付の部屋あり" }] },
+    { id: "23", name: "利尻", dist: 300, methods: ["JAL（丘珠→利尻）"], hotels: [{ name: "ホテル利尻", reason: "空港、フェリーターミナルからホテルまでの送迎あり" }, { name: "クマゲラハウス", reason: "民宿スタイル\n空港、フェリーターミナル送迎あり\nオンシーズンでも比較的安価" }] },
+    { id: "24", name: "常呂", dist: 300, methods: ["JR特急（北見）＋北海道北見バス（常呂消防署）", "高速バス（北見）＋北海道北見バス（常呂消防署）"], hotels: [{ name: "佐藤旅館", reason: "民宿スタイル（室内にトイレあり・清潔）\n常呂バスターミナル近く\n満室になりやすい" }, { name: "北見市内・網走市内のホテル", reason: "" }] },
+    { id: "25", name: "津別", dist: 300, methods: ["JR特急（北見）＋北海道北見バス（共和生きがいセンター）"], hotels: [{ name: "民宿峠荘（美幌町）", reason: "美幌駅から徒歩15分\n1泊2食で7,000円台\n北見出発に比べ、朝の時間に余裕あり" }, { name: "北見第一ホテル", reason: "北見駅に近い\n低価格" }] },
+    { id: "26", name: "佐呂間", dist: 300, methods: ["JR特急（北見）＋ふれあいバス"], hotels: [{ name: "大城旅館", reason: "ふれあいバスが大城旅館前で停車\n一泊２食6500円（ホタテ含盛り沢山）" }] },
+    { id: "27", name: "清里", dist: 300, methods: ["JR特急（網走）＋JR普通（清里）"], hotels: [{ name: "ホテル緑清荘", reason: "清里町駅から徒歩15分（送迎可）\n朝食はビュッフェスタイル\n温泉（サウナ）あり\n朝食付き７０００円" }, { name: "ホテルサンアバシリ", reason: "網走駅に近い\n低価格" }] },
+    { id: "28", name: "興部", dist: 300, methods: ["JR特急（名寄）＋名士バス（興部）", "流氷もんべつ号（紋別ターミナル）＋北紋バス（興部）"], hotels: [{ name: "ペンション鈴木屋", reason: "食事がおいしい" }, { name: "オホーツクパレス(紋別)", reason: "紋別バスターミナルの隣" }, { name: "紋別プリンスホテル", reason: "温泉があり、飲食店街も近い\nバスターミナルから遠い" }] },
+    { id: "29", name: "雄武", dist: 300, methods: ["流氷もんべつ号（紋別ターミナル）＋北紋バス（雄武高校入口）"], hotels: [{ name: "ホテル日出岬", reason: "温泉あり\n紋別から遠い" }, { name: "オホーツクパレス(紋別)", reason: "紋別バスターミナルの隣" }, { name: "紋別プリンスホテル", reason: "温泉があり、飲食店街も近い\nバスターミナルから遠い" }] },
+    { id: "30", name: "本別", dist: 240, methods: ["JR特急（池田）＋十勝バス（本別）"], hotels: [{ name: "ホテル和さび", reason: "食事がおいしい" }] },
+    { id: "31", name: "池田", dist: 220, methods: ["JR特急（池田）"], hotels: [] },
+    { id: "32", name: "弟子屈", dist: 300, methods: ["JR特急（釧路）＋JR普通（摩周）"], hotels: [{ name: "ホテル摩周", reason: "摩周駅から徒歩20分" }] },
+    { id: "33", name: "阿寒", dist: 300, methods: ["JR特急（釧路）＋阿寒バス（阿寒高校前）"], hotels: [{ name: "釧路駅近郊", reason: "" }] },
+    { id: "34", name: "標津", dist: 300, methods: ["JR特急（釧路）＋阿寒バス（郵便局前）", "ANA（新千歳→中標津空港）＋阿寒バス（郵便局前）"], hotels: [{ name: "ビズイン（中標津）", reason: "東横イン風のビジネスホテル\nバスターミナル間近" }, { name: "ホテル川畑", reason: "標津高校まで徒歩10分\nホテルの前にバス停あり。\n温泉があり、飲食店街も近い" }, { name: "ホテルマルエー", reason: "中標津バスターミナルから徒歩10分\n温泉あり" }] },
+    { id: "35", name: "羅臼", dist: 300, methods: ["JR特急（釧路）+阿寒バス（高校前）", "ANA（新千歳→中標津空港）＋阿寒バス（高校前）"], hotels: [{ name: "リブマックスリゾート知床シーフロント", reason: "学校までバス10分" }] }
+];
+
+const select = document.getElementById('schoolSelect');
+schoolData.forEach(school => {
+    let opt = document.createElement('option');
+    opt.value = school.id;
+    opt.innerHTML = `${school.id} ${school.name}`;
+    select.appendChild(opt);
+});
+
+function updateInfo() {
+    const val = select.value;
+    const display = document.getElementById('displayArea');
+    if(!val) { display.style.display = "none"; return; }
+    
+    display.style.display = "block";
+    const data = schoolData.find(s => s.id === val);
+    
+    // 検索用の正式名称を決定
+    let searchName = data.name + "高校";
+    if (data.name === "福島商業") searchName = "北海道福島商業高等学校";
+    if (data.name === "森") searchName = "北海道森高等学校";
+
+    let carHtml = "";
+    let travelMode = "driving";
+    
+    if (data.dist < 125) {
+        carHtml = `<span class="status-mark mark-double-circle">◎</span> 往復日帰り可 <small>(約${data.dist}km)</small>`;
+    } else if (data.dist < 250) {
+        carHtml = `<span class="status-mark mark-circle">○</span> 片道可・要宿泊 <small>(約${data.dist}km)</small>`;
+    } else {
+        carHtml = `<span class="status-mark mark-cross">✕</span> 利用不可 <small>(250km以上)</small>`;
+        travelMode = "transit";
+    }
+    document.getElementById('carStatus').innerHTML = carHtml;
+    
+    if (data.methods.length > 0) {
+        document.getElementById('transitMethod').innerHTML = data.methods.join('<br>');
+    } else {
+        document.getElementById('transitMethod').innerHTML = '<span style="color:#999;">（公共交通機関の主な実績なし／自家用車推奨）</span>';
+    }
+
+    if (data.hotels && data.hotels.length > 0) {
+        let hHtml = '';
+        data.hotels.forEach(h => {
+            const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(h.name)}&destination=${encodeURIComponent(searchName)}&travelmode=${travelMode}`;
+            hHtml += `
+                <div class="hotel-card">
+                    <a href="${mapUrl}" target="_blank" class="btn-hotel-map">ホテルと学校のルート表示</a>
+                    <span class="hotel-name">${h.name}</span>
+                    <div class="hotel-reason">${h.reason}</div>
+                </div>`;
+        });
+        document.getElementById('hotelInfo').innerHTML = hHtml;
+    } else {
+        document.getElementById('hotelInfo').innerHTML = '<span style="color:#999;">（おすすめホテル情報は登録されていません）</span>';
+    }
+    
+    document.getElementById('yahooLink').href = `https://transit.yahoo.co.jp/search/result?from=北海道有朋高等学校&to=${encodeURIComponent(searchName)}`;
+    document.getElementById('googleLink').href = `https://www.google.com/maps/dir/?api=1&origin=北海道有朋高等学校&destination=${encodeURIComponent(searchName)}&travelmode=${travelMode}`;
+}
+</script>
+
+</body>
+</html>
